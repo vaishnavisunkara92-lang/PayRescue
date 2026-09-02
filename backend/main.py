@@ -403,7 +403,6 @@ def recover_payment(payment_id: str):
     ).fetchone()
 
     if payment is None:
-
         conn.close()
 
         return {
@@ -416,12 +415,14 @@ def recover_payment(payment_id: str):
             """
             UPDATE payments
             SET recovery_status = ?,
-                verification_status = ?
+                verification_status = ?,
+                learning_result = ?
             WHERE payment_id = ?
             """,
             (
                 "Recovery successful",
                 "Payment recovered successfully",
+                "Successful recovery recorded for future optimization",
                 payment_id
             )
         )
@@ -435,9 +436,19 @@ def recover_payment(payment_id: str):
 
         conn.close()
 
+        payment_data = dict(updated_payment)
+
+        if payment_data["ai_explanation"]:
+            try:
+                payment_data["ai_explanation"] = json.loads(
+                    payment_data["ai_explanation"]
+                )
+            except:
+                pass
+
         return {
             "message": "Payment recovery successful",
-            "payment": dict(updated_payment)
+            "payment": payment_data
         }
 
     conn.close()
@@ -445,7 +456,6 @@ def recover_payment(payment_id: str):
     return {
         "message": "Payment is not eligible for recovery"
     }
-
 
 # =========================
 # ANALYTICS
