@@ -248,6 +248,53 @@ def learn_from_payment(payment_data):
     else:
         return "Manual recovery case recorded"
 
+# =========================
+# SIMULATED WHATSAPP NOTIFICATION
+# =========================
+
+def generate_whatsapp_notification(payment_data):
+
+    amount = payment_data["amount"]
+    failure_reason = payment_data["failure_reason"]
+    recovery_action = payment_data["recovery_action"]
+
+    if failure_reason == "insufficient_funds":
+        message = (
+            f"⚠️ Your payment of ₹{amount:.0f} failed due to insufficient funds. "
+            f"Please add funds and retry the payment."
+        )
+
+    elif failure_reason == "network_error":
+        message = (
+            f"⚠️ Your payment of ₹{amount:.0f} failed due to a temporary "
+            f"network issue. Please retry the payment."
+        )
+
+    elif failure_reason == "timeout":
+        message = (
+            f"⚠️ Your payment of ₹{amount:.0f} timed out. "
+            f"Please try the payment again."
+        )
+
+    elif failure_reason == "card_declined":
+        message = (
+            f"⚠️ Your payment of ₹{amount:.0f} was declined. "
+            f"Please use another payment method."
+        )
+
+    else:
+        message = (
+            f"⚠️ Your payment of ₹{amount:.0f} could not be completed. "
+            f"Please try another payment method."
+        )
+
+    return {
+        "channel": "WhatsApp",
+        "mode": "Simulated",
+        "status": "Notification generated",
+        "message": message,
+        "recommended_action": recovery_action
+    }
 
 # =========================
 # ADD PAYMENT
@@ -298,6 +345,9 @@ def add_payment(payment: Payment):
         payment_data["recovery_score"],
         payment_data["priority"]
     )
+    payment_data["whatsapp_notification"] = generate_whatsapp_notification(
+        payment_data
+    )
 
     # Save payment to SQLite
     conn = get_db_connection()
@@ -318,9 +368,10 @@ def add_payment(payment: Payment):
             recovery_status,
             verification_status,
             learning_result,
-            ai_explanation
+            ai_explanation,
+            whatsapp_notification
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             payment_data["payment_id"],
@@ -336,7 +387,8 @@ def add_payment(payment: Payment):
             payment_data["recovery_status"],
             payment_data["verification_status"],
             payment_data["learning_result"],
-            json.dumps(payment_data["ai_explanation"])
+            json.dumps(payment_data["ai_explanation"]),
+            json.dumps(payment_data["whatsapp_notification"])
         )
     )
 

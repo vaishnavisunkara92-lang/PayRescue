@@ -39,8 +39,17 @@ function App() {
       }
 
       const paymentsData = await paymentsResponse.json();
-      setPayments(paymentsData.payments || []);
+      const formattedPayments = (paymentsData.payments || []).map(
+  (payment) => ({
+    ...payment,
+    whatsapp_notification:
+      typeof payment.whatsapp_notification === "string"
+        ? JSON.parse(payment.whatsapp_notification)
+        : payment.whatsapp_notification,
+  })
+);
 
+setPayments(formattedPayments);
       const analyticsResponse = await fetch(
         "http://127.0.0.1:8000/analytics"
       );
@@ -620,6 +629,38 @@ function App() {
                 <div className="analysis-item">
                   <span>AI Explanation</span>
 
+{selectedPayment.whatsapp_notification && (
+  <div className="analysis-item">
+    <span>📱 Simulated WhatsApp Notification</span>
+
+    <div>
+      <p>
+        <strong>Channel:</strong>{" "}
+        {selectedPayment.whatsapp_notification.channel}
+      </p>
+
+      <p>
+        <strong>Mode:</strong>{" "}
+        {selectedPayment.whatsapp_notification.mode}
+      </p>
+
+      <p>
+        <strong>Status:</strong>{" "}
+        {selectedPayment.whatsapp_notification.status}
+      </p>
+
+      <p>
+        <strong>Message:</strong>{" "}
+        {selectedPayment.whatsapp_notification.message}
+      </p>
+
+      <p>
+        <strong>Recommended Action:</strong>{" "}
+        {selectedPayment.whatsapp_notification.recommended_action}
+      </p>
+    </div>
+  </div>
+)}
                   <div>
                     {selectedPayment.ai_explanation ? (
                       <>
