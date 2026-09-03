@@ -480,12 +480,53 @@ def get_revenue_summary():
         ("High",)
     ).fetchone()[0]
 
+    recovered = conn.execute(
+        "SELECT COUNT(*) FROM payments WHERE recovery_status = ?",
+        ("Recovery successful",)
+    ).fetchone()[0]
+
+    recovery_rate = (
+        round((recovered / total_failed) * 100)
+        if total_failed > 0
+        else 0
+    )
+
+    failure_rows = conn.execute(
+        """
+        SELECT failure_reason, COUNT(*) as count
+        FROM payments
+        GROUP BY failure_reason
+        """
+    ).fetchall()
+
+    failure_breakdown = {
+        row["failure_reason"]: row["count"]
+        for row in failure_rows
+    }
+
+    priority_rows = conn.execute(
+        """
+        SELECT priority, COUNT(*) as count
+        FROM payments
+        GROUP BY priority
+        """
+    ).fetchall()
+
+    priority_breakdown = {
+        row["priority"]: row["count"]
+        for row in priority_rows
+    }
+
     conn.close()
 
     return {
         "total_failed_payments": total_failed,
         "total_failed_amount": total_amount,
-        "high_priority_payments": high_priority
+        "high_priority_payments": high_priority,
+        "recovered_payments": recovered,
+        "recovery_rate": recovery_rate,
+        "failure_breakdown": failure_breakdown,
+        "priority_breakdown": priority_breakdown
     }
 
 

@@ -10,6 +10,10 @@ function App() {
     total_failed_payments: 0,
     total_failed_amount: 0,
     high_priority_payments: 0,
+    recovered_payments: 0,
+    recovery_rate: 0,
+    failure_breakdown: {},
+    priority_breakdown: {},
   });
 
   const [formData, setFormData] = useState({
@@ -133,7 +137,9 @@ function App() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || "Recovery failed");
+        throw new Error(
+          data.message || "Recovery failed"
+        );
       }
 
       setMessage(data.message);
@@ -179,6 +185,7 @@ function App() {
       <main className="dashboard">
         <section className="welcome">
           <h2>Payment Recovery Dashboard</h2>
+
           <p>
             Monitor failed payments, analyze failures, and
             manage recovery actions.
@@ -188,6 +195,7 @@ function App() {
         <section className="stats-grid">
           <div className="stat-card">
             <h3>Total Failed Payments</h3>
+
             <p className="stat-value">
               {analytics.total_failed_payments}
             </p>
@@ -195,6 +203,7 @@ function App() {
 
           <div className="stat-card">
             <h3>Total Failed Amount</h3>
+
             <p className="stat-value">
               ₹{analytics.total_failed_amount}
             </p>
@@ -202,6 +211,7 @@ function App() {
 
           <div className="stat-card">
             <h3>High Priority Payments</h3>
+
             <p className="stat-value">
               {analytics.high_priority_payments}
             </p>
@@ -209,9 +219,48 @@ function App() {
 
           <div className="stat-card">
             <h3>Recovery Rate</h3>
+
             <p className="stat-value">
               {recoveryRate}%
             </p>
+          </div>
+        </section>
+
+        <section className="analytics-breakdown">
+          <div className="breakdown-card">
+            <h3>Failure Breakdown</h3>
+
+            {Object.entries(
+              analytics.failure_breakdown || {}
+            ).map(([reason, count]) => (
+              <div
+                className="breakdown-row"
+                key={reason}
+              >
+                <span>
+                  {reason.replaceAll("_", " ")}
+                </span>
+
+                <strong>{count}</strong>
+              </div>
+            ))}
+          </div>
+
+          <div className="breakdown-card">
+            <h3>Priority Breakdown</h3>
+
+            {Object.entries(
+              analytics.priority_breakdown || {}
+            ).map(([priority, count]) => (
+              <div
+                className="breakdown-row"
+                key={priority}
+              >
+                <span>{priority}</span>
+
+                <strong>{count}</strong>
+              </div>
+            ))}
           </div>
         </section>
 
@@ -219,6 +268,7 @@ function App() {
           <div className="section-header">
             <div>
               <h2>Recent Failed Payments</h2>
+
               <p>
                 Payments that require recovery attention.
               </p>
@@ -228,12 +278,17 @@ function App() {
               type="button"
               className="primary-button"
               onClick={() => {
-                setShowForm((previousValue) => !previousValue);
+                setShowForm(
+                  (previousValue) => !previousValue
+                );
+
                 setError("");
                 setMessage("");
               }}
             >
-              {showForm ? "Close Form" : "+ Add Payment"}
+              {showForm
+                ? "Close Form"
+                : "+ Add Payment"}
             </button>
           </div>
 
@@ -251,18 +306,20 @@ function App() {
               <div className="form-grid">
                 <div className="form-group">
                   <label>Payment ID</label>
+
                   <input
                     type="text"
                     name="payment_id"
                     value={formData.payment_id}
                     onChange={handleChange}
-                    placeholder="Example: PAY014"
+                    placeholder="Example: PAY027"
                     required
                   />
                 </div>
 
                 <div className="form-group">
                   <label>Amount</label>
+
                   <input
                     type="number"
                     name="amount"
@@ -281,7 +338,9 @@ function App() {
                     value={formData.status}
                     onChange={handleChange}
                   >
-                    <option value="failed">Failed</option>
+                    <option value="failed">
+                      Failed
+                    </option>
                   </select>
                 </div>
 
@@ -380,8 +439,8 @@ function App() {
                 <h3>No payments yet</h3>
 
                 <p>
-                  Add a failed payment to start analyzing and
-                  recovering payments.
+                  Add a failed payment to start analyzing
+                  and recovering payments.
                 </p>
               </div>
             )}
@@ -409,14 +468,24 @@ function App() {
                         Number(a.recovery_score)
                     )
                     .map((payment) => (
-                      <tr key={payment.payment_id}>
-                        <td>{payment.payment_id}</td>
+                      <tr
+                        key={payment.payment_id}
+                      >
+                        <td>
+                          {payment.payment_id}
+                        </td>
 
-                        <td>₹{payment.amount}</td>
+                        <td>
+                          ₹{payment.amount}
+                        </td>
 
-                        <td>{payment.failure_reason}</td>
+                        <td>
+                          {payment.failure_reason}
+                        </td>
 
-                        <td>{payment.recovery_score}</td>
+                        <td>
+                          {payment.recovery_score}
+                        </td>
 
                         <td>
                           <span
@@ -439,7 +508,9 @@ function App() {
                             type="button"
                             className="view-button"
                             onClick={() =>
-                              handleViewAnalysis(payment)
+                              handleViewAnalysis(
+                                payment
+                              )
                             }
                           >
                             View Analysis
@@ -545,29 +616,36 @@ function App() {
                     {selectedPayment.learning_result}
                   </strong>
                 </div>
+
                 <div className="analysis-item">
-  <span>AI Explanation</span>
+                  <span>AI Explanation</span>
 
-  <div>
-    {selectedPayment.ai_explanation ? (
-      <>
-        {selectedPayment.ai_explanation.explanation?.map(
-          (reason, index) => (
-            <p key={index}>
-              • {reason}
-            </p>
-          )
-        )}
+                  <div>
+                    {selectedPayment.ai_explanation ? (
+                      <>
+                        {selectedPayment.ai_explanation.explanation?.map(
+                          (reason, index) => (
+                            <p key={index}>
+                              • {reason}
+                            </p>
+                          )
+                        )}
 
-        <strong>
-          {selectedPayment.ai_explanation.decision}
-        </strong>
-      </>
-    ) : (
-      <p>AI explanation not available</p>
-    )}
-  </div>
-</div>
+                        <strong>
+                          {
+                            selectedPayment
+                              .ai_explanation
+                              .decision
+                          }
+                        </strong>
+                      </>
+                    ) : (
+                      <p>
+                        AI explanation not available
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           )}
