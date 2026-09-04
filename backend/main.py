@@ -5,9 +5,10 @@ from datetime import datetime
 import sqlite3
 import json
 
-# =========================
+
+# =========================================================
 # DATABASE
-# =========================
+# =========================================================
 
 def get_db_connection():
     conn = sqlite3.connect("payrescue.db")
@@ -15,9 +16,9 @@ def get_db_connection():
     return conn
 
 
-# =========================
+# =========================================================
 # FASTAPI
-# =========================
+# =========================================================
 
 app = FastAPI(title="PayRescue API")
 
@@ -30,9 +31,54 @@ app.add_middleware(
 )
 
 
-# =========================
+# =========================================================
+# DATABASE TABLE SETUP
+# =========================================================
+
+def initialize_database():
+    conn = get_db_connection()
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS incidents (
+            incident_id TEXT PRIMARY KEY,
+            failure_reason TEXT,
+            payment_count INTEGER,
+            total_failed_amount REAL,
+            severity TEXT,
+            revenue_at_risk REAL,
+            recovery_strategy TEXT,
+            created_at TEXT
+        )
+        """
+    )
+
+    # Add recovery_attempts only if it does not already exist.
+    # This keeps the existing database safe.
+    columns = conn.execute(
+        "PRAGMA table_info(payments)"
+    ).fetchall()
+
+    column_names = [column["name"] for column in columns]
+
+    if columns and "recovery_attempts" not in column_names:
+        conn.execute(
+            """
+            ALTER TABLE payments
+            ADD COLUMN recovery_attempts INTEGER DEFAULT 0
+            """
+        )
+
+    conn.commit()
+    conn.close()
+
+
+initialize_database()
+
+
+# =========================================================
 # PAYMENT MODEL
-# =========================
+# =========================================================
 
 class Payment(BaseModel):
     payment_id: str
@@ -44,13 +90,53 @@ class Payment(BaseModel):
 
 payments = []
 
+# =========================
+# CIRCUIT BREAKER
+# =========================
 
-# =========================
+CIRCUIT_BREAKER_STATE = "CLOSED"
+
+CIRCUIT_BREAKER_CONFIG = {
+    "failure_threshold": 3,
+    "test_mode": False
+}
+
+
+def get_circuit_breaker_status():
+    return {
+        "state": CIRCUIT_BREAKER_STATE,
+        "failure_threshold": CIRCUIT_BREAKER_CONFIG["failure_threshold"],
+        "message": (
+            "Recovery operations are normal."
+            if CIRCUIT_BREAKER_STATE == "CLOSED"
+            else
+            "Recovery operations are temporarily blocked."
+            if CIRCUIT_BREAKER_STATE == "OPEN"
+            else
+            "Test recovery is allowed."
+        )
+    }
+def set_circuit_breaker_state(state):
+    global CIRCUIT_BREAKER_STATE
+
+    if state in ["CLOSED", "OPEN", "HALF-OPEN"]:
+        CIRCUIT_BREAKER_STATE = state
+
+    return get_circuit_breaker_status()
+
+@app.get("/circuit-breaker")
+def circuit_breaker():
+    return get_circuit_breaker_status()
+
+@app.post("/circuit-breaker/{state}")
+def change_circuit_breaker(state: str):
+    return set_circuit_breaker_state(state.upper())
+
+# =========================================================
 # FAILURE DIAGNOSIS
-# =========================
+# =========================================================
 
 def diagnose_failure(failure_reason):
-
     if failure_reason == "insufficient_funds":
         return "Customer has insufficient funds"
 
@@ -67,12 +153,11 @@ def diagnose_failure(failure_reason):
         return "Unknown payment failure"
 
 
-# =========================
+# =========================================================
 # RECOVERY SCORE
-# =========================
+# =========================================================
 
 def calculate_recovery_score(amount, customer_type, failure_reason):
-
     score = 0
 
     if amount >= 5000:
@@ -105,12 +190,11 @@ def calculate_recovery_score(amount, customer_type, failure_reason):
     return score
 
 
-# =========================
+# =========================================================
 # PRIORITY
-# =========================
+# =========================================================
 
 def get_priority(recovery_score):
-
     if recovery_score >= 80:
         return "High"
 
@@ -121,9 +205,9 @@ def get_priority(recovery_score):
         return "Low"
 
 
-# =========================
+# =========================================================
 # AI EXPLANATION
-# =========================
+# =========================================================
 
 def explain_recovery_decision(
     amount,
@@ -132,7 +216,6 @@ def explain_recovery_decision(
     recovery_score,
     priority
 ):
-
     reasons = []
 
     if amount >= 5000:
@@ -179,12 +262,11 @@ def explain_recovery_decision(
     }
 
 
-# =========================
+# =========================================================
 # RECOVERY ACTION
-# =========================
+# =========================================================
 
 def decide_recovery_action(failure_reason, priority):
-
     if failure_reason == "insufficient_funds":
         return "Retry payment after customer adds funds"
 
@@ -201,12 +283,11 @@ def decide_recovery_action(failure_reason, priority):
         return "Manual review required"
 
 
-# =========================
+# =========================================================
 # SIMULATE RECOVERY
-# =========================
+# =========================================================
 
 def simulate_recovery(recovery_action):
-
     if "Retry payment" in recovery_action:
         return "Recovery attempt initiated"
 
@@ -217,12 +298,11 @@ def simulate_recovery(recovery_action):
         return "Payment sent for manual recovery"
 
 
-# =========================
+# =========================================================
 # VERIFY RECOVERY
-# =========================
+# =========================================================
 
 def verify_recovery(recovery_status):
-
     if recovery_status == "Recovery attempt initiated":
         return "Recovery pending verification"
 
@@ -233,12 +313,11 @@ def verify_recovery(recovery_status):
         return "Manual recovery pending"
 
 
-# =========================
+# =========================================================
 # LEARNING
-# =========================
+# =========================================================
 
 def learn_from_payment(payment_data):
-
     if payment_data["recovery_status"] == "Recovery attempt initiated":
         return "Recovery strategy recorded for future optimization"
 
@@ -248,44 +327,44 @@ def learn_from_payment(payment_data):
     else:
         return "Manual recovery case recorded"
 
-# =========================
+
+# =========================================================
 # SIMULATED WHATSAPP NOTIFICATION
-# =========================
+# =========================================================
 
 def generate_whatsapp_notification(payment_data):
-
     amount = payment_data["amount"]
     failure_reason = payment_data["failure_reason"]
     recovery_action = payment_data["recovery_action"]
 
     if failure_reason == "insufficient_funds":
         message = (
-            f"⚠️ Your payment of ₹{amount:.0f} failed due to insufficient funds. "
-            f"Please add funds and retry the payment."
+            f"⚠️ Your payment of ₹{amount:.0f} failed due to insufficient "
+            "funds. Please add funds and retry the payment."
         )
 
     elif failure_reason == "network_error":
         message = (
             f"⚠️ Your payment of ₹{amount:.0f} failed due to a temporary "
-            f"network issue. Please retry the payment."
+            "network issue. Please retry the payment."
         )
 
     elif failure_reason == "timeout":
         message = (
             f"⚠️ Your payment of ₹{amount:.0f} timed out. "
-            f"Please try the payment again."
+            "Please try the payment again."
         )
 
     elif failure_reason == "card_declined":
         message = (
             f"⚠️ Your payment of ₹{amount:.0f} was declined. "
-            f"Please use another payment method."
+            "Please use another payment method."
         )
 
     else:
         message = (
             f"⚠️ Your payment of ₹{amount:.0f} could not be completed. "
-            f"Please try another payment method."
+            "Please try another payment method."
         )
 
     return {
@@ -296,9 +375,10 @@ def generate_whatsapp_notification(payment_data):
         "recommended_action": recovery_action
     }
 
-# =========================
+
+# =========================================================
 # ADD PAYMENT
-# =========================
+# =========================================================
 
 @app.post("/payments")
 def add_payment(payment: Payment):
@@ -345,11 +425,11 @@ def add_payment(payment: Payment):
         payment_data["recovery_score"],
         payment_data["priority"]
     )
-    payment_data["whatsapp_notification"] = generate_whatsapp_notification(
-        payment_data
+
+    payment_data["whatsapp_notification"] = (
+        generate_whatsapp_notification(payment_data)
     )
 
-    # Save payment to SQLite
     conn = get_db_connection()
 
     conn.execute(
@@ -403,9 +483,9 @@ def add_payment(payment: Payment):
     }
 
 
-# =========================
+# =========================================================
 # GET PAYMENTS
-# =========================
+# =========================================================
 
 @app.get("/payments")
 def get_payments():
@@ -421,18 +501,29 @@ def get_payments():
     payments_data = [dict(row) for row in rows]
 
     for payment in payments_data:
+
         if payment["ai_explanation"]:
+
             try:
                 payment["ai_explanation"] = json.loads(
                     payment["ai_explanation"]
                 )
+
             except:
                 payment["ai_explanation"] = {
-                    "explanation": [
-                        payment["ai_explanation"]
-                    ],
+                    "explanation": [payment["ai_explanation"]],
                     "decision": ""
                 }
+
+        if payment["whatsapp_notification"]:
+
+            try:
+                payment["whatsapp_notification"] = json.loads(
+                    payment["whatsapp_notification"]
+                )
+
+            except:
+                pass
 
     return {
         "total_payments": len(payments_data),
@@ -440,12 +531,238 @@ def get_payments():
     }
 
 
-# =========================
+# =========================================================
 # RECOVER PAYMENT
-# =========================
+# =========================================================
 
 @app.post("/recover/{payment_id}")
 def recover_payment(payment_id: str):
+
+    MAX_RECOVERY_ATTEMPTS = 3
+
+    conn = get_db_connection()
+
+    payment = conn.execute(
+        "SELECT * FROM payments WHERE payment_id = ?",
+        (payment_id,)
+    ).fetchone()
+
+    # Circuit breaker safety check
+    if CIRCUIT_BREAKER_STATE == "OPEN":
+     return {
+        "status": "BLOCKED",
+        "message": "Recovery blocked by Circuit Breaker.",
+        "circuit_breaker": "OPEN"
+    }
+    if CIRCUIT_BREAKER_STATE == "HALF-OPEN":
+     return {
+        "status": "TEST_REQUIRED",
+        "message": "Circuit Breaker is HALF-OPEN. Test recovery is required before normal recovery resumes.",
+        "circuit_breaker": "HALF-OPEN"
+    }
+
+    # =====================================================
+    # PAYMENT EXISTENCE CHECK
+    # =====================================================
+
+    if payment is None:
+        conn.close()
+
+        return {
+            "message": "Payment not found"
+        }
+
+    current_attempts = payment["recovery_attempts"] or 0
+
+    # =====================================================
+    # IDEMPOTENCY CHECK
+    # =====================================================
+
+    if payment["recovery_status"] == "Recovery successful":
+
+        conn.close()
+
+        return {
+            "message": "Payment already recovered",
+            "status": "Already recovered",
+            "recovery_attempts": current_attempts
+        }
+
+    # =====================================================
+    # RETRY LIMIT CHECK
+    # =====================================================
+
+    if current_attempts >= MAX_RECOVERY_ATTEMPTS:
+
+        conn.execute(
+            """
+            UPDATE payments
+            SET recovery_status = ?,
+                verification_status = ?,
+                learning_result = ?
+            WHERE payment_id = ?
+            """,
+            (
+                "Recovery blocked",
+                "Manual review required",
+                "Recovery blocked because maximum retry limit was reached",
+                payment_id
+            )
+        )
+
+        conn.commit()
+        conn.close()
+
+        return {
+            "message": "Recovery blocked",
+            "status": "BLOCKED",
+            "reason": "Maximum recovery attempts reached",
+            "max_attempts": MAX_RECOVERY_ATTEMPTS,
+            "recovery_attempts": current_attempts
+        }
+        # =====================================================
+    # HUMAN-IN-THE-LOOP APPROVAL CHECK
+    # =====================================================
+
+    if (
+    payment["priority"] == "High"
+    and payment["recovery_status"] != "Recovery approved"
+):
+
+        conn.close()
+
+        return {
+            "message": "Human approval required before recovery",
+            "status": "APPROVAL_REQUIRED",
+            "priority": "High",
+            "payment_id": payment_id
+        }
+
+    # =====================================================
+    # ELIGIBILITY CHECK
+    # =====================================================
+
+    if payment["recovery_status"] not in [
+    "Recovery attempt initiated",
+    "Recovery approved"
+]:
+
+        conn.close()
+
+        return {
+            "message": "Payment is not eligible for recovery",
+            "recovery_attempts": current_attempts
+        }
+
+    # =====================================================
+    # RECORD RECOVERY ATTEMPT
+    # =====================================================
+
+    new_attempt_count = current_attempts + 1
+
+    conn.execute(
+        """
+        UPDATE payments
+        SET recovery_attempts = ?,
+            recovery_status = ?,
+            verification_status = ?,
+            learning_result = ?
+        WHERE payment_id = ?
+        """,
+        (
+            new_attempt_count,
+            "Recovery successful",
+            "Payment recovered successfully",
+            "Successful recovery recorded for future optimization",
+            payment_id
+        )
+    )
+
+    conn.commit()
+
+    updated_payment = conn.execute(
+        "SELECT * FROM payments WHERE payment_id = ?",
+        (payment_id,)
+    ).fetchone()
+
+    conn.close()
+
+    payment_data = dict(updated_payment)
+
+    if payment_data["ai_explanation"]:
+
+        try:
+            payment_data["ai_explanation"] = json.loads(
+                payment_data["ai_explanation"]
+            )
+
+        except:
+            pass
+
+    if payment_data["whatsapp_notification"]:
+
+        try:
+            payment_data["whatsapp_notification"] = json.loads(
+                payment_data["whatsapp_notification"]
+            )
+
+        except:
+            pass
+
+    return {
+        "message": "Payment recovery successful",
+        "status": "SUCCESS",
+        "recovery_attempts": new_attempt_count,
+        "max_attempts": MAX_RECOVERY_ATTEMPTS,
+        "payment": payment_data
+    }
+# =========================================================
+# HUMAN APPROVAL
+# =========================================================
+
+@app.post("/approve-recovery/{payment_id}")
+def approve_recovery(payment_id: str):
+
+    conn = get_db_connection()
+
+    payment = conn.execute(
+        "SELECT * FROM payments WHERE payment_id = ?",
+        (payment_id,)
+    ).fetchone()
+
+    if payment is None:
+        conn.close()
+        return {
+            "message": "Payment not found",
+            "status": "NOT_FOUND"
+        }
+
+    conn.execute(
+        """
+        UPDATE payments
+        SET recovery_status = ?
+        WHERE payment_id = ?
+        """,
+        (
+            "Recovery approved",
+            payment_id
+        )
+    )
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "message": "Recovery approved by human operator",
+        "status": "APPROVED",
+        "payment_id": payment_id
+    }
+# =========================================================
+# HUMAN-IN-THE-LOOP APPROVAL
+# =========================================================
+
+@app.post("/approve-recovery/{payment_id}")
+def approve_recovery(payment_id: str):
 
     conn = get_db_connection()
 
@@ -458,60 +775,155 @@ def recover_payment(payment_id: str):
         conn.close()
 
         return {
-            "message": "Payment not found"
+            "message": "Payment not found",
+            "status": "NOT_FOUND"
         }
 
-    if payment["recovery_status"] == "Recovery attempt initiated":
-
-        conn.execute(
-            """
-            UPDATE payments
-            SET recovery_status = ?,
-                verification_status = ?,
-                learning_result = ?
-            WHERE payment_id = ?
-            """,
-            (
-                "Recovery successful",
-                "Payment recovered successfully",
-                "Successful recovery recorded for future optimization",
-                payment_id
-            )
-        )
-
-        conn.commit()
-
-        updated_payment = conn.execute(
-            "SELECT * FROM payments WHERE payment_id = ?",
-            (payment_id,)
-        ).fetchone()
-
+    # Only High Priority payments require human approval
+    if payment["priority"] != "High":
         conn.close()
 
-        payment_data = dict(updated_payment)
-
-        if payment_data["ai_explanation"]:
-            try:
-                payment_data["ai_explanation"] = json.loads(
-                    payment_data["ai_explanation"]
-                )
-            except:
-                pass
-
         return {
-            "message": "Payment recovery successful",
-            "payment": payment_data
+            "message": "Human approval is not required for this payment",
+            "status": "NOT_REQUIRED",
+            "payment_id": payment_id,
+            "priority": payment["priority"]
         }
 
+    # Payment already recovered
+    if payment["recovery_status"] == "Recovery successful":
+        conn.close()
+
+        return {
+            "message": "Payment already recovered",
+            "status": "ALREADY_RECOVERED",
+            "payment_id": payment_id
+        }
+
+    conn.execute(
+        """
+        UPDATE payments
+        SET recovery_status = ?
+        WHERE payment_id = ?
+        """,
+        (
+            "Recovery approved",
+            payment_id
+        )
+    )
+
+    conn.commit()
     conn.close()
 
     return {
-        "message": "Payment is not eligible for recovery"
+        "message": "Recovery approved by human operator",
+        "status": "APPROVED",
+        "payment_id": payment_id,
+        "priority": "High"
     }
 
-# =========================
+# =========================================================
+# INCIDENT DETECTION
+# =========================================================
+
+def detect_incidents():
+
+    conn = get_db_connection()
+
+    rows = conn.execute(
+        """
+        SELECT
+            failure_reason,
+            COUNT(*) AS payment_count,
+            COALESCE(SUM(amount), 0) AS total_failed_amount
+        FROM payments
+        WHERE status = 'failed'
+        GROUP BY failure_reason
+        """
+    ).fetchall()
+
+    incidents = []
+
+    for row in rows:
+
+        failure_reason = row["failure_reason"]
+        payment_count = row["payment_count"]
+        total_failed_amount = row["total_failed_amount"]
+
+        # Determine incident severity
+
+        if total_failed_amount >= 10000 or payment_count >= 5:
+            severity = "Critical"
+
+        elif total_failed_amount >= 5000 or payment_count >= 3:
+            severity = "High"
+
+        elif total_failed_amount >= 2000 or payment_count >= 2:
+            severity = "Medium"
+
+        else:
+            severity = "Low"
+
+        # Revenue at risk
+
+        revenue_at_risk = total_failed_amount
+
+        # Recovery strategy
+
+        if failure_reason == "insufficient_funds":
+            recovery_strategy = (
+                "Customer fund top-up and payment retry"
+            )
+
+        elif failure_reason == "network_error":
+            recovery_strategy = "Immediate payment retry"
+
+        elif failure_reason == "timeout":
+            recovery_strategy = "Payment retry"
+
+        elif failure_reason == "card_declined":
+            recovery_strategy = "Alternative payment method"
+
+        else:
+            recovery_strategy = "Manual review"
+
+        incident_id = f"INC-{failure_reason}"
+
+        incidents.append(
+            {
+                "incident_id": incident_id,
+                "failure_reason": failure_reason,
+                "payment_count": payment_count,
+                "total_failed_amount": total_failed_amount,
+                "severity": severity,
+                "revenue_at_risk": revenue_at_risk,
+                "recovery_strategy": recovery_strategy
+            }
+        )
+
+    conn.close()
+
+    return incidents
+
+
+# =========================================================
+# INCIDENT API
+# =========================================================
+
+@app.get("/incidents")
+def get_incidents():
+
+    incidents = detect_incidents()
+
+    return {
+        "total_incidents": len(incidents),
+        "incidents": incidents
+    }
+
+
+# =========================================================
 # ANALYTICS
-# =========================
+# =========================================================
 
 def get_revenue_summary():
 
@@ -523,7 +935,11 @@ def get_revenue_summary():
     ).fetchone()[0]
 
     total_amount = conn.execute(
-        "SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = ?",
+        """
+        SELECT COALESCE(SUM(amount), 0)
+        FROM payments
+        WHERE status = ?
+        """,
         ("failed",)
     ).fetchone()[0]
 
@@ -533,7 +949,11 @@ def get_revenue_summary():
     ).fetchone()[0]
 
     recovered = conn.execute(
-        "SELECT COUNT(*) FROM payments WHERE recovery_status = ?",
+        """
+        SELECT COUNT(*)
+        FROM payments
+        WHERE recovery_status = ?
+        """,
         ("Recovery successful",)
     ).fetchone()[0]
 
@@ -585,12 +1005,24 @@ def get_revenue_summary():
 @app.get("/analytics")
 def analytics():
 
-    return get_revenue_summary()
+    summary = get_revenue_summary()
+
+    incidents = detect_incidents()
+
+    total_revenue_at_risk = sum(
+        incident["revenue_at_risk"]
+        for incident in incidents
+    )
+
+    summary["total_revenue_at_risk"] = total_revenue_at_risk
+    summary["total_incidents"] = len(incidents)
+
+    return summary
 
 
-# =========================
+# =========================================================
 # ROOT
-# =========================
+# =========================================================
 
 @app.get("/")
 def root():
