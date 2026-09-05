@@ -69,6 +69,16 @@ def initialize_database():
             """
         )
 
+    # Add retry timestamp only if it does not already exist.
+    # This keeps the existing database safe and preserves all existing data.
+    if columns and "recovery_last_attempt_at" not in column_names:
+        conn.execute(
+            """
+            ALTER TABLE payments
+            ADD COLUMN recovery_last_attempt_at TEXT
+            """
+        )
+
     conn.commit()
     conn.close()
 
@@ -91,46 +101,155 @@ class Payment(BaseModel):
 payments = []
 
 # =========================
-# CIRCUIT BREAKER
+# CIRCUIT BREAKER + RECOVERY SAFETY
 # =========================
 
 CIRCUIT_BREAKER_STATE = "CLOSED"
 
 CIRCUIT_BREAKER_CONFIG = {
     "failure_threshold": 3,
+    "failure_window_seconds": 300,
     "test_mode": False
 }
 
+RECOVERY_COOLDOWN_SECONDS = 30
+MAX_RECOVERY_ATTEMPTS = 3
+AUTONOMOUS_EXPOSURE_CAP = 10000
+recovery_failure_events = []
+# =========================================================
+# AUTONOMOUS EXPOSURE SAFETY
+# =========================================================
+
+AUTONOMOUS_EXPOSURE_CAP = 10000
+
+def _cleanup_recovery_failure_events():
+    """Keep only recent recovery failure events inside the safety window."""
+    global recovery_failure_events
+
+    now = datetime.now().timestamp()
+    window = CIRCUIT_BREAKER_CONFIG["failure_window_seconds"]
+
+    recovery_failure_events = [
+        event_time
+        for event_time in recovery_failure_events
+        if now - event_time <= window
+    ]
+
+
+def record_recovery_failure():
+    """Record a real recovery failure and automatically open the breaker."""
+    global CIRCUIT_BREAKER_STATE
+
+    _cleanup_recovery_failure_events()
+    recovery_failure_events.append(datetime.now().timestamp())
+
+    if len(recovery_failure_events) >= CIRCUIT_BREAKER_CONFIG["failure_threshold"]:
+        CIRCUIT_BREAKER_STATE = "OPEN"
+
 
 def get_circuit_breaker_status():
+    _cleanup_recovery_failure_events()
+
     return {
         "state": CIRCUIT_BREAKER_STATE,
         "failure_threshold": CIRCUIT_BREAKER_CONFIG["failure_threshold"],
+        "recent_recovery_failures": len(recovery_failure_events),
+        "failure_window_seconds": CIRCUIT_BREAKER_CONFIG["failure_window_seconds"],
         "message": (
             "Recovery operations are normal."
             if CIRCUIT_BREAKER_STATE == "CLOSED"
             else
-            "Recovery operations are temporarily blocked."
+            "Recovery operations are temporarily blocked for safety."
             if CIRCUIT_BREAKER_STATE == "OPEN"
             else
-            "Test recovery is allowed."
+            "Test recovery is allowed before normal recovery resumes."
         )
     }
+
+
 def set_circuit_breaker_state(state):
     global CIRCUIT_BREAKER_STATE
 
     if state in ["CLOSED", "OPEN", "HALF-OPEN"]:
         CIRCUIT_BREAKER_STATE = state
 
+        # Closing the breaker starts a fresh safety window.
+        if state == "CLOSED":
+            recovery_failure_events.clear()
+
     return get_circuit_breaker_status()
+
+
+def get_cooldown_status(last_attempt_at):
+    """Return retry cooldown information for a payment."""
+    if not last_attempt_at:
+        return {
+            "active": False,
+            "remaining_seconds": 0,
+            "message": "No active retry cooldown"
+        }
+
+    try:
+        last_attempt = datetime.fromisoformat(last_attempt_at)
+        elapsed = (datetime.now() - last_attempt).total_seconds()
+        remaining = max(0, int(RECOVERY_COOLDOWN_SECONDS - elapsed))
+
+        return {
+            "active": remaining > 0,
+            "remaining_seconds": remaining,
+            "message": (
+                f"Retry cooldown active. Try again in {remaining} seconds."
+                if remaining > 0
+                else "Retry cooldown completed."
+            )
+        }
+    except (ValueError, TypeError):
+        return {
+            "active": False,
+            "remaining_seconds": 0,
+            "message": "No active retry cooldown"
+        }
+
 
 @app.get("/circuit-breaker")
 def circuit_breaker():
     return get_circuit_breaker_status()
 
+
 @app.post("/circuit-breaker/{state}")
 def change_circuit_breaker(state: str):
     return set_circuit_breaker_state(state.upper())
+
+
+@app.get("/safety-status")
+def safety_status():
+    """Dashboard-friendly overview of the PayRescue safety layer."""
+
+    return {
+        "status": (
+            "SAFE"
+            if CIRCUIT_BREAKER_STATE == "CLOSED"
+            else "CIRCUIT OPEN"
+            if CIRCUIT_BREAKER_STATE == "OPEN"
+            else "TEST MODE"
+        ),
+        "circuit_breaker": get_circuit_breaker_status(),
+
+        # Recovery safety controls
+        "retry_cooldown_seconds": RECOVERY_COOLDOWN_SECONDS,
+        "max_recovery_attempts": MAX_RECOVERY_ATTEMPTS,
+        "autonomous_exposure_cap": AUTONOMOUS_EXPOSURE_CAP,
+
+        "message": (
+            "Automated recovery is operating normally."
+            if CIRCUIT_BREAKER_STATE == "CLOSED"
+            else
+            "Automated recovery is paused until the circuit is safely closed."
+            if CIRCUIT_BREAKER_STATE == "OPEN"
+            else
+            "Only controlled test recovery is allowed."
+        )
+    }
 
 # =========================================================
 # FAILURE DIAGNOSIS
@@ -574,6 +693,26 @@ def recover_payment(payment_id: str):
 
     current_attempts = payment["recovery_attempts"] or 0
 
+        # =====================================================
+    # AUTONOMOUS EXPOSURE CAP CHECK
+    # =====================================================
+
+    if (
+        payment["amount"] > AUTONOMOUS_EXPOSURE_CAP
+        and payment["recovery_status"] != "Recovery approved"
+    ):
+        conn.close()
+
+        return {
+            "message": "Autonomous recovery blocked by exposure safety limit",
+            "status": "APPROVAL_REQUIRED",
+            "reason": "Payment amount exceeds autonomous exposure cap",
+            "payment_id": payment_id,
+            "amount": payment["amount"],
+            "autonomous_exposure_cap": AUTONOMOUS_EXPOSURE_CAP,
+            "safety_status": "HUMAN_APPROVAL_REQUIRED"
+        }
+
     # =====================================================
     # IDEMPOTENCY CHECK
     # =====================================================
@@ -585,6 +724,24 @@ def recover_payment(payment_id: str):
         return {
             "message": "Payment already recovered",
             "status": "Already recovered",
+            "recovery_attempts": current_attempts
+        }
+
+    # =====================================================
+    # RETRY COOLDOWN CHECK
+    # =====================================================
+
+    cooldown = get_cooldown_status(payment["recovery_last_attempt_at"])
+
+    if cooldown["active"]:
+        conn.close()
+
+        return {
+            "message": "Recovery temporarily blocked by retry cooldown",
+            "status": "COOLDOWN",
+            "reason": cooldown["message"],
+            "remaining_seconds": cooldown["remaining_seconds"],
+            "cooldown_seconds": RECOVERY_COOLDOWN_SECONDS,
             "recovery_attempts": current_attempts
         }
 
@@ -618,7 +775,8 @@ def recover_payment(payment_id: str):
             "status": "BLOCKED",
             "reason": "Maximum recovery attempts reached",
             "max_attempts": MAX_RECOVERY_ATTEMPTS,
-            "recovery_attempts": current_attempts
+            "recovery_attempts": current_attempts,
+            "safety_status": "RECOVERY BLOCKED"
         }
         # =====================================================
     # HUMAN-IN-THE-LOOP APPROVAL CHECK
@@ -666,7 +824,8 @@ def recover_payment(payment_id: str):
         SET recovery_attempts = ?,
             recovery_status = ?,
             verification_status = ?,
-            learning_result = ?
+            learning_result = ?,
+            recovery_last_attempt_at = ?
         WHERE payment_id = ?
         """,
         (
@@ -674,6 +833,7 @@ def recover_payment(payment_id: str):
             "Recovery successful",
             "Payment recovered successfully",
             "Successful recovery recorded for future optimization",
+            datetime.now().isoformat(),
             payment_id
         )
     )
@@ -714,48 +874,9 @@ def recover_payment(payment_id: str):
         "status": "SUCCESS",
         "recovery_attempts": new_attempt_count,
         "max_attempts": MAX_RECOVERY_ATTEMPTS,
+        "cooldown_seconds": RECOVERY_COOLDOWN_SECONDS,
+        "safety_status": "SAFE",
         "payment": payment_data
-    }
-# =========================================================
-# HUMAN APPROVAL
-# =========================================================
-
-@app.post("/approve-recovery/{payment_id}")
-def approve_recovery(payment_id: str):
-
-    conn = get_db_connection()
-
-    payment = conn.execute(
-        "SELECT * FROM payments WHERE payment_id = ?",
-        (payment_id,)
-    ).fetchone()
-
-    if payment is None:
-        conn.close()
-        return {
-            "message": "Payment not found",
-            "status": "NOT_FOUND"
-        }
-
-    conn.execute(
-        """
-        UPDATE payments
-        SET recovery_status = ?
-        WHERE payment_id = ?
-        """,
-        (
-            "Recovery approved",
-            payment_id
-        )
-    )
-
-    conn.commit()
-    conn.close()
-
-    return {
-        "message": "Recovery approved by human operator",
-        "status": "APPROVED",
-        "payment_id": payment_id
     }
 # =========================================================
 # HUMAN-IN-THE-LOOP APPROVAL
@@ -1030,4 +1151,93 @@ def root():
     return {
         "project": "PayRescue",
         "message": "Payment Recovery System is running"
+    }
+# =========================================================
+# RAZORPAY TEST PAYMENT SIMULATOR
+# =========================================================
+
+class TestPaymentRequest(BaseModel):
+    amount: float
+    customer_type: str = "regular"
+    scenario: str = "insufficient_funds"
+
+
+@app.post("/razorpay-test/simulate")
+def simulate_razorpay_test_payment(request: TestPaymentRequest):
+
+    scenario = request.scenario.lower().strip()
+
+    scenario_map = {
+        "success": {
+            "failure_reason": None,
+            "status": "success"
+        },
+        "insufficient_funds": {
+            "failure_reason": "insufficient_funds",
+            "status": "failed"
+        },
+        "card_declined": {
+            "failure_reason": "card_declined",
+            "status": "failed"
+        },
+        "network_error": {
+            "failure_reason": "network_error",
+            "status": "failed"
+        },
+        "timeout": {
+            "failure_reason": "timeout",
+            "status": "failed"
+        }
+    }
+
+    if scenario not in scenario_map:
+        return {
+            "status": "ERROR",
+            "message": "Invalid test scenario",
+            "available_scenarios": list(scenario_map.keys())
+        }
+
+    scenario_data = scenario_map[scenario]
+
+    # Generate unique simulator payment ID
+    conn = get_db_connection()
+
+    existing = conn.execute(
+        "SELECT COUNT(*) FROM payments"
+    ).fetchone()[0]
+
+    payment_id = f"RZP-TEST-{existing + 1:04d}"
+
+    conn.close()
+
+    # Successful test payment
+    if scenario == "success":
+
+        return {
+            "source": "Razorpay Test Payment Simulator",
+            "mode": "TEST",
+            "payment_id": payment_id,
+            "amount": request.amount,
+            "customer_type": request.customer_type,
+            "status": "success",
+            "message": "Simulated Razorpay test payment successful"
+        }
+
+    # Failed test payment goes through
+    # the existing PayRescue AI engine
+    payment = Payment(
+        payment_id=payment_id,
+        amount=request.amount,
+        status="failed",
+        failure_reason=scenario_data["failure_reason"],
+        customer_type=request.customer_type
+    )
+
+    result = add_payment(payment)
+
+    return {
+        "source": "Razorpay Test Payment Simulator",
+        "mode": "TEST",
+        "simulated": True,
+        "payment": result["payment"]
     }

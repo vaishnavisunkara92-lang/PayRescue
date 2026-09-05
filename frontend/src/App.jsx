@@ -384,6 +384,16 @@ function App() {
     customer_type: "",
   });
 
+  // Razorpay-style TEST payment simulator state.
+  const [simulatorData, setSimulatorData] = useState({
+    amount: "7000",
+    customer_type: "premium",
+    scenario: "insufficient_funds",
+  });
+
+  const [simulatorResult, setSimulatorResult] = useState(null);
+  const [simulatorLoading, setSimulatorLoading] = useState(false);
+
   const [selectedPayment, setSelectedPayment] = useState(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -514,6 +524,70 @@ function App() {
     } catch (err) {
       console.error(err);
       setError(err.message);
+    }
+  };
+
+  const handleSimulatorChange = (event) => {
+    const { name, value } = event.target;
+
+    setSimulatorData((previousData) => ({
+      ...previousData,
+      [name]: value,
+    }));
+  };
+
+  const handleSimulateRazorpayPayment = async (event) => {
+    event.preventDefault();
+
+    setError("");
+    setMessage("");
+    setSimulatorResult(null);
+    setSimulatorLoading(true);
+
+    try {
+      const response = await fetch(
+        `${API_BASE}/razorpay-test/simulate`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            amount: Number(simulatorData.amount),
+            customer_type: simulatorData.customer_type,
+            scenario: simulatorData.scenario,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail ||
+            data.message ||
+            "Test payment simulation failed"
+        );
+      }
+
+      setSimulatorResult(data);
+
+      if (data.payment) {
+        setMessage(
+          `Test payment ${data.payment.payment_id} created and analyzed by PayRescue.`
+        );
+      } else {
+        setMessage(
+          "Simulated test payment completed successfully."
+        );
+      }
+
+      await loadData();
+    } catch (err) {
+      console.error("Razorpay test simulator error:", err);
+      setError(err.message);
+    } finally {
+      setSimulatorLoading(false);
     }
   };
 
@@ -1603,6 +1677,185 @@ function App() {
               </table>
             </div>
           )}
+        </section>
+
+        {/* RAZORPAY TEST PAYMENT SIMULATOR */}
+
+        <section className="section-card">
+          <div className="section-header">
+            <div>
+              <div className="section-kicker">
+                PAYMENT GATEWAY SIMULATION
+              </div>
+
+              <h2>Razorpay Test Payment Simulator</h2>
+
+              <p>
+                Safely simulate payment outcomes and send failed
+                transactions through the PayRescue recovery engine.
+              </p>
+            </div>
+
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "8px 12px",
+                borderRadius: "999px",
+                background: "rgba(16, 185, 129, 0.10)",
+                border: "1px solid rgba(16, 185, 129, 0.25)",
+                color: "#059669",
+                fontSize: "12px",
+                fontWeight: 800,
+                letterSpacing: "0.04em",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <span
+                style={{
+                  width: "7px",
+                  height: "7px",
+                  borderRadius: "50%",
+                  background: "#10b981",
+                  boxShadow: "0 0 0 4px rgba(16, 185, 129, 0.10)",
+                }}
+              ></span>
+              RAZORPAY TEST MODE
+            </div>
+          </div>
+
+          <form
+            className="payment-form"
+            onSubmit={handleSimulateRazorpayPayment}
+          >
+            <div className="form-heading">
+              <div className="form-icon">
+                <Icon name="zap" size={20} />
+              </div>
+
+              <div>
+                <h3>Simulate Test Transaction</h3>
+
+                <p>
+                  No live Razorpay API, no real money, and no real
+                  customer transaction is used.
+                </p>
+              </div>
+            </div>
+
+            <div className="form-grid">
+              <div className="form-group">
+                <label>Test Amount</label>
+
+                <div className="input-with-prefix">
+                  <span>₹</span>
+
+                  <input
+                    type="number"
+                    name="amount"
+                    min="1"
+                    value={simulatorData.amount}
+                    onChange={handleSimulatorChange}
+                    placeholder="7000"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Customer Type</label>
+
+                <select
+                  name="customer_type"
+                  value={simulatorData.customer_type}
+                  onChange={handleSimulatorChange}
+                >
+                  <option value="regular">Regular</option>
+                  <option value="premium">Premium</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Payment Scenario</label>
+
+                <select
+                  name="scenario"
+                  value={simulatorData.scenario}
+                  onChange={handleSimulatorChange}
+                >
+                  <option value="insufficient_funds">
+                    Insufficient Funds
+                  </option>
+
+                  <option value="card_declined">
+                    Card Declined
+                  </option>
+
+                  <option value="network_error">
+                    Network Error
+                  </option>
+
+                  <option value="timeout">
+                    Timeout
+                  </option>
+
+                  <option value="success">
+                    Successful Payment
+                  </option>
+                </select>
+              </div>
+            </div>
+
+            <div className="form-actions">
+              <button
+                type="submit"
+                className="submit-button"
+                disabled={simulatorLoading}
+              >
+                <Icon name="zap" size={16} />
+
+                {simulatorLoading
+                  ? "Simulating..."
+                  : "Simulate Test Payment"}
+              </button>
+            </div>
+
+            {simulatorResult && (
+              <div
+                className="message success-message"
+                style={{
+                  alignItems: "flex-start",
+                  flexDirection: "column",
+                  gap: "6px",
+                }}
+              >
+                <strong>
+                  {simulatorResult.source}
+                </strong>
+
+                <span>
+                  Mode: {simulatorResult.mode} •{" "}
+                  {simulatorResult.simulated
+                    ? "Simulated transaction"
+                    : "Test transaction"}
+                </span>
+
+                {simulatorResult.payment && (
+                  <span>
+                    Payment{" "}
+                    <strong>
+                      {simulatorResult.payment.payment_id}
+                    </strong>{" "}
+                    →{" "}
+                    {simulatorResult.payment.priority} priority •
+                    Score{" "}
+                    {simulatorResult.payment.recovery_score}/100
+                  </span>
+                )}
+              </div>
+            )}
+          </form>
         </section>
 
         {/* ADD PAYMENT */}
