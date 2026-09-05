@@ -1,1178 +1,954 @@
-\# PayRescue
+# PayRescue
 
+## AI-Powered Payment Recovery and Decision-Support System
 
+PayRescue is an AI-powered payment recovery and decision-support system designed to help businesses understand failed digital payments, identify valuable recovery opportunities, and execute controlled recovery actions.
 
-\## AI-Powered Payment Recovery and Decision-Support System
+Instead of treating every failed payment in the same way, PayRescue analyzes the payment amount, customer type, and failure reason to generate an explainable recovery score, assign a priority, and recommend an appropriate recovery strategy.
 
+The system goes beyond simple retry logic by combining **failure diagnosis, recovery prioritization, incident detection, revenue-at-risk analysis, safety guardrails, human approval, controlled recovery, verification, learning, and analytics** into one workflow.
 
+PayRescue is being developed for the **Razorpay AI Buildathon 2026**.
 
-PayRescue is a payment recovery system built to help identify and recover failed digital payments.
+---
 
+## The Problem
 
+Failed payments are a major challenge in digital payments.
 
-Instead of treating every failed payment in the same way, PayRescue looks at the payment amount, customer type, and reason for failure. Based on these details, it calculates a recovery score, assigns a priority, and recommends an appropriate recovery action.
+A payment failure does not always mean that the payment opportunity is lost. Different failures require different responses.
 
+For example:
 
+* An insufficient-funds failure may become successful after the customer adds funds.
+* A network error may be recoverable through a controlled retry.
+* A timeout may require another attempt.
+* A card decline may require an alternative payment method.
 
-The system also tracks what happens after the recovery attempt and provides an explanation for why a particular recovery decision was made.
+If every failed payment is handled using the same strategy, businesses can:
 
+* Miss valuable recovery opportunities
+* Waste resources on low-value payments
+* Retry payments unnecessarily
+* Increase operational risk
+* Provide a poor customer experience
+* Fail to detect larger payment incidents
+* Have limited visibility into revenue at risk
+* Find it difficult to understand why a recovery decision was made
 
+PayRescue addresses this problem by turning payment failures into **prioritized, explainable, and safety-aware recovery decisions**.
 
-PayRescue is being developed for the \*\*Razorpay AI Buildathon 2026\*\*.
+---
 
+# Our Approach
 
+PayRescue follows a complete payment recovery lifecycle:
 
-\---
+**Failed Payment → Diagnosis → Explainable AI Reasoning → Recovery Score → Priority → Incident Detection → Revenue at Risk → Safety Checks → Human Approval → Recovery → Verification → Learning → Analytics**
 
+The system is designed around an important principle:
 
+> **Not every failed payment should be retried automatically.**
 
-\## The Problem
+The recovery decision depends on the failure type, payment value, customer type, recovery opportunity, and safety conditions.
 
+---
 
+# Key Features
 
-Failed payments are a common problem in digital payments.
+## 1. Failed Payment Recording
 
+PayRescue records important payment information including:
 
+* Payment ID
+* Payment amount
+* Payment status
+* Failure reason
+* Customer type
+* Creation timestamp
+* Diagnosis
+* Recovery score
+* Priority
+* Recommended recovery action
+* Recovery status
+* Verification status
+* Learning result
+* AI explanation
+* Notification status
 
-When a payment fails, simply marking it as "failed" is not enough. Some payments can be recovered by retrying, some may need the customer to add funds, while others may require a different payment method.
+Payment information is stored locally using SQLite.
 
+---
 
+## 2. Failure Diagnosis
 
-If all failed payments are handled in the same way, businesses can:
-
-
-
-\* Miss valuable recovery opportunities
-
-\* Spend time on low-priority payments
-
-\* Use the wrong recovery strategy
-
-\* Provide a poor customer experience
-
-\* Find it difficult to understand why a recovery decision was made
-
-
-
-This is the problem PayRescue is designed to address.
-
-
-
-\---
-
-
-
-\## Our Approach
-
-
-
-PayRescue turns a failed payment into a structured recovery decision.
-
-
-
-The basic workflow is:
-
-
-
-\*\*Failed Payment → Diagnosis → Recovery Score → Priority → Recommended Action → Recovery → Verification → Learning Result\*\*
-
-
-
-For every payment, the system analyzes the available information and decides how important the payment is from a recovery perspective.
-
-
-
-The dashboard then gives the user a simple view of the payment, its recovery opportunity, and the action that can be taken.
-
-
-
-\---
-
-
-
-\## What PayRescue Does
-
-
-
-\### 1. Records Failed Payments
-
-
-
-The system stores important payment details such as:
-
-
-
-\* Payment ID
-
-\* Payment amount
-
-\* Payment status
-
-\* Failure reason
-
-\* Customer type
-
-\* Creation time
-
-
-
-This information is stored in a SQLite database.
-
-
-
-\### 2. Diagnoses the Failure
-
-
-
-PayRescue converts technical failure reasons into simple explanations.
-
-
+PayRescue converts technical payment failure reasons into understandable explanations.
 
 Currently supported failure reasons include:
 
-
-
-\* `insufficient\_funds`
-
-\* `card\_declined`
-
-\* `network\_error`
-
-\* `timeout`
-
-
+* `insufficient_funds`
+* `card_declined`
+* `network_error`
+* `timeout`
 
 For example:
 
+```text
+insufficient_funds
+```
 
+is converted into a human-readable diagnosis such as:
 
-`insufficient\_funds`
+```text
+Customer has insufficient funds
+```
 
+This makes technical payment failures easier for operators to understand.
 
+---
 
-becomes:
+## 3. Explainable AI Decision Engine
 
+The current implementation uses an **explainable rule-based decision engine**.
 
+It does not claim to be a trained machine-learning model.
 
-> Customer has insufficient funds
+The engine evaluates:
 
+* Payment amount
+* Customer type
+* Failure reason
 
+It then generates:
 
-This makes the payment information easier to understand.
+* Recovery score
+* Priority
+* Recommended action
+* Human-readable explanation
 
+This makes the recovery decision transparent instead of presenting an unexplained score.
 
+---
 
-\### 3. Calculates a Recovery Score
+# Recovery Scoring
 
+The current scoring system uses three major factors.
 
-
-Each failed payment receives a recovery score.
-
-
-
-The score is based on three main factors:
-
-
-
-\* Payment amount
-
-\* Customer type
-
-\* Failure reason
-
-
-
-A higher score means the payment is considered a better recovery opportunity.
-
-
-
-\### 4. Assigns Priority
-
-
-
-Based on the recovery score, PayRescue assigns one of three priorities:
-
-
-
-\* \*\*High\*\*
-
-\* \*\*Medium\*\*
-
-\* \*\*Low\*\*
-
-
-
-This helps users focus on the most important recovery opportunities first.
-
-
-
-\### 5. Recommends a Recovery Action
-
-
-
-The system does not use the same recovery action for every failure.
-
-
-
-For example:
-
-
-
-\* Insufficient funds → Retry after the customer adds funds
-
-\* Network error → Retry the payment
-
-\* Timeout → Retry the payment
-
-\* Card declined → Ask the customer to use another payment method
-
-
-
-This makes the recovery process more targeted.
-
-
-
-\### 6. Simulates Recovery
-
-
-
-PayRescue can simulate the recommended recovery action.
-
-
-
-For example, a retry action can be recorded as:
-
-
-
-> Recovery attempt initiated
-
-
-
-This allows the complete recovery workflow to be demonstrated without requiring a real payment gateway.
-
-
-
-\### 7. Verifies the Recovery
-
-
-
-After a recovery action is simulated, the system records the current verification state.
-
-
-
-For example:
-
-
-
-> Recovery pending verification
-
-
-
-or
-
-
-
-> Waiting for customer to retry
-
-
-
-This helps track what happens after the recovery action.
-
-
-
-\### 8. Records Learning Results
-
-
-
-PayRescue also records information about the recovery strategy used.
-
-
-
-For example:
-
-
-
-> Recovery strategy recorded for future optimization
-
-
-
-This creates a foundation for using historical recovery results in future versions of the system.
-
-
-
-\### 9. Provides Explainable Decisions
-
-
-
-One of the important parts of PayRescue is explainability.
-
-
-
-The system does not simply show a score such as `90` and leave the user wondering why.
-
-
-
-It explains the decision using factors such as:
-
-
-
-\* Payment amount
-
-\* Customer type
-
-\* Failure reason
-
-\* Recovery score
-
-\* Priority
-
-\* Recommended recovery approach
-
-
-
-For example, the system can explain that a payment received a high priority because of its amount, customer type, and failure reason.
-
-
-
-\### 10. Shows Recovery Analytics
-
-
-
-The dashboard provides an overview of the payment recovery process.
-
-
-
-It currently displays:
-
-
-
-\* Total failed payments
-
-\* Total failed amount
-
-\* High-priority payments
-
-\* Recovery rate
-
-\* Recent failed payments
-
-
-
-\---
-
-
-
-\## Recovery Scoring Logic
-
-
-
-The current version uses an explainable rule-based scoring system.
-
-
-
-\### Payment Amount
-
-
+## Payment Amount
 
 | Payment Amount | Score |
-
 | -------------- | ----: |
-
 | ₹5000 or more  |   +40 |
-
 | ₹2000 to ₹4999 |   +25 |
-
 | Below ₹2000    |   +10 |
 
-
-
-\### Customer Type
-
-
+## Customer Type
 
 | Customer Type | Score |
-
 | ------------- | ----: |
-
 | Premium       |   +30 |
-
 | Regular       |   +10 |
 
-
-
-\### Failure Reason
-
-
+## Failure Reason
 
 | Failure Reason     | Score |
-
 | ------------------ | ----: |
-
 | Insufficient funds |   +20 |
-
 | Network error      |   +15 |
-
 | Timeout            |   +15 |
-
 | Card declined      |    +5 |
 
+---
 
-
-\---
-
-
-
-\## Priority Logic
-
-
+# Priority Classification
 
 The final recovery score determines the payment priority.
 
-
-
 | Recovery Score | Priority |
-
 | -------------- | -------- |
-
 | 80 or above    | High     |
-
-| 50 to 79       | Medium   |
-
+| 50–79          | Medium   |
 | Below 50       | Low      |
 
+This allows operators to focus attention on the most important recovery opportunities first.
 
+---
 
-This allows the dashboard to highlight the payments that may deserve more attention.
+# Recovery Strategy
 
-
-
-\---
-
-
-
-\## Recovery Actions
-
-
-
-The recommended action depends mainly on the reason the payment failed.
-
-
+PayRescue does not use the same recovery action for every payment failure.
 
 | Failure Reason     | Recommended Action                         |
-
 | ------------------ | ------------------------------------------ |
-
 | Insufficient funds | Retry after customer adds funds            |
-
-| Network error      | Retry payment immediately                  |
-
+| Network error      | Retry payment                              |
 | Timeout            | Retry payment                              |
-
 | Card declined      | Ask customer to use another payment method |
-
 | Other              | Manual review                              |
 
+This creates a more targeted recovery workflow.
 
+---
 
-\---
+# Incident Command Center
 
+PayRescue can group failed payments by failure reason to identify potential payment incidents.
 
+The Incident Command Center provides visibility into:
 
-\## Explainable AI
+* Incident type
+* Number of affected payments
+* Total affected amount
+* Incident severity
+* Revenue at risk
+* Operational impact
 
+Incident severity is calculated using the number of affected payments and the associated failed amount.
 
+The system can classify incidents as:
 
-The current PayRescue system uses an \*\*explainable rule-based decision engine\*\*.
+* Critical
+* High
+* Medium
+* Low
 
+This allows operators to identify when multiple payment failures may represent a larger operational problem rather than isolated failures.
 
+---
 
-This is important because the current version does \*\*not\*\* claim to be a trained machine-learning model.
+# Revenue at Risk
 
+PayRescue calculates the amount of failed payment value currently exposed to recovery risk.
 
+The dashboard surfaces:
 
-The decision engine uses known rules to calculate the recovery score and priority. It then generates a human-readable explanation for the decision.
+**Revenue at Risk**
 
+This helps shift the focus from simply counting failed payments to understanding their potential business impact.
 
+For example, two incidents may contain the same number of failed payments but have very different financial importance.
 
-For example, a payment may be explained using:
+---
 
+# Recovery Operations Queue
 
+The Recovery Operations Queue provides an operational view of payments that require recovery attention.
 
-\* High payment amount
+Payments can be prioritized based on:
 
-\* Premium customer
+* Recovery score
+* Priority
+* Failure reason
+* Recovery status
+* Safety conditions
+* Approval requirements
 
-\* Recoverable failure reason
+This gives operators a centralized view of recovery opportunities.
 
-\* High recovery score
+---
 
-\* High priority
+# Safety Layer
 
+A key feature of PayRescue is that recovery is not allowed to operate without safety controls.
 
+The backend implements several recovery safety mechanisms.
 
-This makes the decision easier for a user to understand and trust.
+## Maximum Recovery Attempts
 
+The system limits the number of recovery attempts for a payment.
 
+Current limit:
 
-\### Future AI Direction
+```text
+Maximum recovery attempts = 3
+```
 
+This helps prevent uncontrolled retry loops.
 
+---
 
-A future version of PayRescue can use machine learning trained on historical payment and recovery outcomes.
+## Retry Cooldown
 
+A cooldown period is applied between recovery attempts.
 
+Current configuration:
 
-Such a model could estimate the probability of successful recovery and help rank different recovery strategies.
+```text
+Retry cooldown = 30 seconds
+```
 
+This prevents immediate repeated recovery attempts.
 
+---
 
-This would allow the system to move from rule-based decision-making toward data-driven recovery optimization.
+## Idempotency Protection
 
+PayRescue prevents a payment that has already completed recovery from being processed again unnecessarily.
 
+This helps avoid duplicate recovery operations.
 
-\---
+For example:
 
+```text
+Already recovered
+```
 
+is returned when a completed recovery is attempted again.
 
-\## How the System Works
+---
 
+# Autonomous Exposure Cap
 
+PayRescue includes an autonomous recovery exposure limit.
 
-The complete PayRescue workflow is:
+Current configuration:
 
+```text
+Autonomous exposure cap = ₹10,000
+```
 
+If a payment exceeds this amount, the system does not automatically perform recovery.
 
-\### Step 1 — Record the Payment
+Instead, it requires human approval.
 
+Example:
 
+```text
+Payment Amount: ₹12,000
 
-A failed payment is entered into the system.
+Result:
+APPROVAL_REQUIRED
+```
 
+This creates a safety boundary between automated recovery and higher-value recovery decisions.
 
+---
 
-\### Step 2 — Understand the Failure
+# Human-in-the-Loop Approval
 
+High-risk or high-value recovery operations can require explicit human approval.
 
+The approval workflow is:
 
-The system identifies the reason for the payment failure.
+**Recovery Request → Safety Check → Approval Required → Human Approval → Recovery**
 
+This prevents the system from automatically executing sensitive recovery operations without operator authorization.
 
+The backend provides:
 
-\### Step 3 — Calculate Recovery Score
+```text
+POST /approve-recovery/{payment_id}
+```
 
+After approval, the payment can proceed through the recovery workflow.
 
+---
 
-The payment amount, customer type, and failure reason are evaluated.
+# Circuit Breaker
 
+PayRescue includes a circuit breaker designed to protect recovery operations when repeated recovery failures occur.
 
+The circuit breaker supports:
 
-\### Step 4 — Assign Priority
+* `CLOSED`
+* `OPEN`
+* `HALF-OPEN`
 
+Current configuration includes:
 
+```text
+Failure threshold = 3
+Failure window = 300 seconds
+```
 
-The payment is classified as High, Medium, or Low priority.
+The circuit breaker provides an additional safety boundary for automated recovery operations.
 
+The current circuit breaker state can be monitored through the safety API.
 
+---
 
-\### Step 5 — Recommend an Action
+# Safety Status
 
+The system exposes a safety monitoring endpoint:
 
+```text
+GET /safety-status
+```
 
-The system selects a recovery action based on the failure reason.
+It provides information such as:
 
+* Overall safety status
+* Circuit breaker state
+* Failure threshold
+* Recent recovery failures
+* Failure window
+* Retry cooldown
+* Maximum recovery attempts
+* Autonomous exposure cap
 
+Example configuration:
 
-\### Step 6 — Recover
+```text
+Status: SAFE
+Circuit Breaker: CLOSED
+Max Recovery Attempts: 3
+Autonomous Exposure Cap: ₹10,000
+Retry Cooldown: 30 seconds
+```
 
+This provides operational visibility into the current recovery safety state.
 
+---
 
-The recovery action is simulated and recorded.
+# Recovery Simulation
 
+PayRescue supports simulated recovery actions without requiring real financial transactions.
 
+Example:
 
-\### Step 7 — Verify
+```text
+Recovery attempt initiated
+```
 
+Other possible simulated outcomes include:
 
+```text
+Customer notified to use another payment method
+```
 
-The system records the verification status.
+or:
 
+```text
+Payment sent for manual recovery
+```
 
+The simulation allows the complete recovery lifecycle to be demonstrated safely.
 
-\### Step 8 — Learn
+---
 
+# Verification
 
+After recovery, PayRescue records the verification state.
 
-The recovery strategy and result are recorded for future optimization.
+Possible states include:
 
+```text
+Recovery pending verification
+```
 
+```text
+Waiting for customer to retry
+```
 
-\### Step 9 — Analyze
+```text
+Manual recovery pending
+```
 
+This allows the system to track what happens after the recovery action.
 
+---
 
-The dashboard updates the recovery statistics.
+# Learning Result
 
+PayRescue records the outcome of the recovery strategy.
 
+For example:
 
-\---
+```text
+Recovery strategy recorded for future optimization
+```
 
+This creates a foundation for future data-driven optimization.
 
+Historical recovery outcomes could eventually be used to train models that predict recovery probability and recommend the most effective strategy.
 
-\## Dashboard
+---
 
+# Simulated WhatsApp Notification
 
+PayRescue includes a simulated customer notification workflow.
 
-The PayRescue frontend provides a simple dashboard for managing failed payments.
+Example:
 
+```text
+⚠️ Your payment of ₹3000 timed out.
+Please try the payment again.
+```
 
+The notification system records:
+
+* Channel
+* Mode
+* Status
+* Message
+* Recommended action
+
+This is a **simulation only** and does not connect to the real WhatsApp API.
+
+---
+
+# Razorpay Test Payment Simulator
+
+PayRescue includes a test payment simulator for demonstrating different payment outcomes.
+
+The simulator can represent scenarios such as:
+
+* Successful payment
+* Insufficient funds
+* Card declined
+* Network error
+* Timeout
+
+This allows the recovery workflow to be demonstrated without processing real payments.
+
+The simulator is intended for development and demonstration purposes.
+
+---
+
+# Dashboard
+
+The React dashboard provides a centralized operational view.
 
 The dashboard includes:
 
+* Total failed payments
+* Total failed amount
+* High-priority payments
+* Recovery rate
+* Failure breakdown
+* Priority breakdown
+* Revenue at risk
+* Incident Command Center
+* Recovery Operations Queue
+* Recent failed payments
+* Payment analysis
+* Recovery controls
+* Safety controls
+* Razorpay test simulator
+* Simulated payment method information
 
+---
 
-\* Analytics cards
+# Payment Analysis
 
-\* Add Payment form
+When a payment is selected for analysis, the dashboard can display:
 
-\* Payment table
+* Payment ID
+* Diagnosis
+* Recovery Score
+* Priority
+* Recovery Action
+* Recovery Status
+* Verification Status
+* Learning Result
+* AI Explanation
 
-\* View Analysis option
+This provides operators with both the decision and the reasoning behind it.
 
-\* Recovery button
+---
 
-\* Recovery information
+# Example
 
-\* AI explanation
-
-
-
-The payment table is organized by recovery score so that higher recovery opportunities can be noticed quickly.
-
-
-
-When a payment is analyzed, the user can see:
-
-
-
-\* Diagnosis
-
-\* Recovery Score
-
-\* Priority
-
-\* Recovery Action
-
-\* Recovery Status
-
-\* Verification Status
-
-\* Learning Result
-
-\* AI Explanation
-
-
-
-\---
-
-
-
-\## Example
-
-
-
-Suppose a payment has the following details:
-
-
+Suppose a payment contains:
 
 ```text
-
 Payment ID: PAY022
-
 Amount: ₹8000
-
 Customer Type: Premium
-
-Failure Reason: insufficient\_funds
-
+Failure Reason: insufficient_funds
 ```
 
-
-
-The system calculates:
-
-
+The recovery score is calculated as:
 
 ```text
-
-Amount points       = +40
-
-Customer points     = +30
-
-Failure reason     = +20
-
-\--------------------------------
-
-Recovery Score      = 90
-
-Priority            = High
-
+Amount points        = +40
+Customer points      = +30
+Failure reason       = +20
+--------------------------------
+Recovery Score       = 90
+Priority             = High
 ```
 
-
-
-The system then recommends:
-
-
-
-> Retry payment after the customer adds funds.
-
-
-
-After the recovery process, the system can record the recovery status, verification status, and learning result.
-
-
-
-This example shows how PayRescue converts raw payment failure information into an actionable recovery decision.
-
-
-
-\---
-
-
-
-\## Technology Stack
-
-
-
-\### Backend
-
-
-
-\* Python
-
-\* FastAPI
-
-\* Uvicorn
-
-\* Pydantic
-
-\* SQLite
-
-
-
-\### Frontend
-
-
-
-\* React
-
-\* Vite
-
-\* JavaScript
-
-\* CSS
-
-
-
-\### Development Tools
-
-
-
-\* Visual Studio Code
-
-\* Git
-
-\* GitHub
-
-
-
-\---
-
-
-
-\## Project Structure
-
-
+The system recommends:
 
 ```text
-
-PayRescue/
-
-│
-
-├── backend/
-
-│   ├── main.py
-
-│   ├── payrescue.db
-
-│   └── venv/
-
-│
-
-├── frontend/
-
-│   ├── src/
-
-│   ├── package.json
-
-│   └── ...
-
-│
-
-├── .gitignore
-
-└── README.md
-
+Retry payment after the customer adds funds
 ```
 
+If the payment is subject to a safety restriction, the system can require human approval before recovery.
 
+This demonstrates how PayRescue converts raw payment failure information into a structured and explainable recovery decision.
 
-The `payrescue.db` database and Python virtual environment are used locally and are intentionally excluded from GitHub using `.gitignore`.
+---
 
+# Complete System Workflow
 
+The PayRescue lifecycle is:
 
-Other generated or unnecessary files such as `\_\_pycache\_\_` and `node\_modules` are also excluded.
+### Step 1 — Payment Failure
 
+A payment fails.
 
+### Step 2 — Diagnosis
 
-\---
+The system identifies and explains the failure reason.
 
+### Step 3 — Recovery Scoring
 
+The system evaluates the payment amount, customer type, and failure reason.
 
-\## Running the Backend
+### Step 4 — Priority Assignment
 
+The payment is classified as High, Medium, or Low priority.
 
+### Step 5 — Incident Detection
 
-Open \*\*CMD\*\* and go to the backend folder:
+Related failures can be grouped to identify potential incidents.
 
+### Step 6 — Revenue Risk Analysis
 
+The system calculates the financial value currently at risk.
+
+### Step 7 — Safety Evaluation
+
+The system checks:
+
+* Retry limits
+* Cooldown
+* Idempotency
+* Exposure limits
+* Circuit breaker state
+* Approval requirements
+
+### Step 8 — Human Approval
+
+Higher-risk recovery operations can require explicit operator approval.
+
+### Step 9 — Recovery
+
+The approved recovery action is simulated and recorded.
+
+### Step 10 — Verification
+
+The recovery state is tracked.
+
+### Step 11 — Learning
+
+The recovery outcome is recorded.
+
+### Step 12 — Analytics
+
+Dashboard metrics are updated to provide operational visibility.
+
+---
+
+# Technology Stack
+
+## Backend
+
+* Python
+* FastAPI
+* Uvicorn
+* Pydantic
+* SQLite
+
+## Frontend
+
+* React
+* Vite
+* JavaScript
+* CSS
+
+## Development Tools
+
+* Visual Studio Code
+* Git
+* GitHub
+
+---
+
+# Project Architecture
+
+## Project Architecture
+
+The following architecture shows how the major PayRescue components work together.
+
+![PayRescue System Architecture](architecture.png)
+
+### Architecture Flow
+
+**User/Operator → React Dashboard → FastAPI Backend → Explainable Decision Engine → Safety & Recovery Controls → SQLite Database**
+
+The system also includes incident intelligence, revenue-at-risk analysis, recovery verification, learning results, and simulated payment and notification integrations.
+---![architecture]](image.png)
+
+# Backend API
+
+The main backend endpoints include:
+
+| Method | Endpoint                         | Purpose                            |
+| ------ | -------------------------------- | ---------------------------------- |
+| GET    | `/`                              | Check whether PayRescue is running |
+| POST   | `/payments`                      | Record a payment                   |
+| GET    | `/payments`                      | Retrieve stored payments           |
+| GET    | `/analytics`                     | Retrieve dashboard analytics       |
+| POST   | `/recover/{payment_id}`          | Start recovery                     |
+| POST   | `/approve-recovery/{payment_id}` | Approve recovery                   |
+| GET    | `/safety-status`                 | View recovery safety status        |
+| GET    | `/circuit-breaker`               | View circuit breaker state         |
+| POST   | `/circuit-breaker/{state}`       | Control circuit breaker            |
+| POST   | `/razorpay-test/simulate`        | Simulate payment scenarios         |
+
+The APIs can be tested through the FastAPI Swagger interface.
+
+---
+
+# Running the Backend
+
+Open **CMD** and navigate to the backend folder:
 
 ```cmd
-
-cd /d C:\\Users\\vaishnavi\\OneDrive\\Documents\\PayRescue\\backend
-
+cd /d C:\Users\vaishnavi\OneDrive\Documents\PayRescue\backend
 ```
-
-
 
 Activate the virtual environment:
 
-
-
 ```cmd
-
-venv\\Scripts\\activate
-
+venv\Scripts\activate
 ```
-
-
 
 Start the FastAPI server:
 
-
-
 ```cmd
-
 uvicorn main:app --reload
-
 ```
 
-
-
-The backend will run at:
-
-
+The backend runs at:
 
 ```text
-
 http://127.0.0.1:8000
-
 ```
 
-
-
-FastAPI provides interactive API documentation at:
-
-
+Swagger documentation:
 
 ```text
-
 http://127.0.0.1:8000/docs
-
 ```
 
+---
 
+# Running the Frontend
 
-\---
+Open a **second CMD window**.
 
-
-
-\## Running the Frontend
-
-
-
-Open a \*\*second CMD window\*\*.
-
-
-
-Go to the frontend folder:
-
-
+Navigate to the frontend folder:
 
 ```cmd
-
-cd /d C:\\Users\\vaishnavi\\OneDrive\\Documents\\PayRescue\\frontend
-
+cd /d C:\Users\vaishnavi\OneDrive\Documents\PayRescue\frontend
 ```
-
-
 
 Start the Vite development server:
 
-
-
 ```cmd
-
 npm.cmd run dev
-
 ```
 
-
-
-The frontend normally opens at:
-
-
+The frontend normally runs at:
 
 ```text
-
 http://localhost:5173/
-
 ```
 
+If port `5173` is already in use, Vite may automatically select another port such as:
 
+```text
+http://localhost:5174/
+```
 
-If that port is already in use, Vite may automatically use another port such as `5174`.
+Use the URL displayed by Vite in the terminal.
 
+---
 
+# Example API Request
 
-\---
+A failed payment can be recorded using:
 
+```bash
+curl -X POST \
+  "http://127.0.0.1:8000/payments" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "payment_id": "PAY001",
+    "amount": 2500,
+    "status": "failed",
+    "failure_reason": "insufficient_funds",
+    "customer_type": "regular"
+  }'
+```
 
+The backend then diagnoses the payment and calculates its recovery score and priority.
 
-\## API Endpoints
+---
 
+# Safety-First Recovery Philosophy
 
+PayRescue is designed around the principle:
 
-| Method | Endpoint                | Purpose                            |
+> **Automation should be controlled by safety boundaries.**
 
-| ------ | ----------------------- | ---------------------------------- |
+The system therefore does not assume that every failed payment should automatically be retried.
 
-| GET    | `/`                     | Check whether PayRescue is running |
+Instead, it evaluates:
 
-| POST   | `/payments`             | Add a payment                      |
+```text
+Can this payment be recovered?
+        ↓
+Is recovery valuable?
+        ↓
+Is the recommended action appropriate?
+        ↓
+Is automated recovery safe?
+        ↓
+Does human approval need to be involved?
+        ↓
+Execute controlled recovery
+```
 
-| GET    | `/payments`             | Get stored payments                |
+This makes the system more suitable for demonstrating responsible AI-assisted financial operations.
 
-| POST   | `/recover/{payment\_id}` | Start recovery for a payment       |
+---
 
-| GET    | `/analytics`            | Get dashboard analytics            |
+# Current Project Status
 
-
-
-The APIs can be tested using the FastAPI Swagger interface.
-
-
-
-\---
-
-
-
-\## Current Project Status
-
-
-
-The core PayRescue workflow has been implemented and tested.
-
-
+The core PayRescue system has been implemented and tested.
 
 Currently available:
 
+* Failed payment recording
+* SQLite persistence
+* Failure diagnosis
+* Explainable recovery scoring
+* Priority assignment
+* Recovery action recommendation
+* Incident detection
+* Revenue-at-risk analysis
+* Recovery Operations Queue
+* Recovery simulation
+* Recovery verification
+* Learning result recording
+* Explainable AI reasoning
+* Human approval workflow
+* Autonomous exposure cap
+* Maximum recovery attempts
+* Retry cooldown
+* Idempotency protection
+* Circuit breaker
+* Safety status monitoring
+* Razorpay test payment simulator
+* Simulated WhatsApp notifications
+* Analytics dashboard
+* React frontend
+* FastAPI backend
+* Backend/frontend integration
+* Git version control
+* GitHub repository
 
+The current version demonstrates an end-to-end payment recovery decision-support workflow using an explainable rule-based AI engine and safety-aware recovery controls.
 
-\* Failed payment recording
+---
 
-\* SQLite database
+# Future Enhancements
 
-\* Failure diagnosis
+## Machine Learning
 
-\* Recovery scoring
+A future version can train machine-learning models using historical payment and recovery outcomes.
 
-\* Priority assignment
+The model could estimate:
 
-\* Recovery action recommendation
+```text
+Probability of successful recovery
+```
 
-\* Recovery simulation
+and help rank recovery strategies.
 
-\* Recovery verification
+---
 
-\* Learning result recording
+## Smarter Strategy Selection
 
-\* Explainable AI decisions
+Instead of selecting one recovery action using predefined rules, future versions could compare multiple strategies and select the one with the highest expected recovery value.
 
-\* Analytics
+---
 
-\* React dashboard
+## Customer Segmentation
 
-\* Backend and frontend integration
+Recovery strategies could be personalized using historical customer payment behavior.
 
-\* Git version control
+---
 
-\* GitHub repository
+## Advanced Incident Detection
 
+Future versions could use real-time statistical baselines to detect unusual spikes in payment failures and identify emerging incidents earlier.
 
+---
 
-The current implementation demonstrates the complete payment recovery decision workflow using an explainable rule-based approach.
+## Real Payment Gateway Integration
 
+The simulator could eventually be connected to a controlled payment gateway test environment.
 
+Real-money processing is outside the scope of the current demonstration.
 
-\---
+---
 
+## Real Notifications
 
+The simulated notification layer could eventually integrate with approved email, SMS, or messaging providers.
 
-\## Future Enhancements
+---
 
+## Advanced Analytics
 
+Future dashboards could include:
 
-There are several areas where PayRescue can be expanded.
+* Recovery probability
+* Recovery amount
+* Failure trends
+* Incident trends
+* Payment rail performance
+* Strategy effectiveness
+* Customer recovery behavior
 
+---
 
-
-\### Machine Learning
-
-
-
-Train a model using historical payment recovery data to predict the probability of successful recovery.
-
-
-
-\### Smarter Strategy Selection
-
-
-
-Instead of selecting an action only from predefined rules, the system could rank multiple recovery strategies based on their expected success.
-
-
-
-\### Customer Segmentation
-
-
-
-Different customer groups could receive different recovery strategies based on their previous payment behavior.
-
-
-
-\### Real Payment Gateway Integration
-
-
-
-The simulation could eventually be connected to a real payment gateway environment.
-
-
-
-\### Notifications
-
-
-
-Recovery actions could be connected to email, SMS, or other notification services.
-
-
-
-\### Advanced Analytics
-
-
-
-The dashboard could include charts for:
-
-
-
-\* Failure reason distribution
-
-\* Priority distribution
-
-\* Recovery success rate
-
-\* Recovery amount
-
-\* Payment trends
-
-
-
-\### Real-Time Monitoring
-
-
-
-The system could monitor payment failures as they happen and immediately identify important recovery opportunities.
-
-
-
-\---
-
-
-
-\## Why PayRescue?
-
-
+# Why PayRescue?
 
 PayRescue focuses on a simple but important idea:
 
+> **A failed payment should not always be treated as a lost payment.**
 
+The system transforms payment failures into structured recovery decisions.
 
-\*\*A failed payment should not always be treated as a lost payment.\*\*
+Instead of blindly retrying every failed payment, PayRescue:
 
+**Understands → Prioritizes → Protects → Recovers → Verifies → Learns**
 
+This helps demonstrate how AI-assisted decision support can be combined with safety controls to improve payment recovery operations.
 
-By understanding why a payment failed and deciding what should happen next, businesses can focus their recovery efforts where they are most useful.
+---
 
+# Buildathon
 
+PayRescue is being developed for the:
 
-The current rule-based system provides an explainable foundation, while the architecture can be extended later with machine learning and real payment data.
+**Razorpay AI Buildathon 2026**
 
+The project explores how explainable AI decision support, recovery optimization, incident awareness, and safety-aware automation can be applied to digital payment recovery.
 
+The current implementation is a **simulation and decision-support system** and does not process real customer payments.
 
-\---
+---
 
+# Author
 
+**Vaishnavi Sunkara**
 
-\## Buildathon
-
-
-
-PayRescue is being developed for the \*\*Razorpay AI Buildathon 2026\*\*.
-
-
-
-The project explores how AI-driven decision support and explainability can be used to improve payment recovery.
-
-
-
-The current version demonstrates the complete recovery workflow, while future versions can build on the existing system with machine learning, real-world payment data, and more advanced recovery optimization.
-
-
-
-\---
-
-
-
-\## Author
-
-
-
-\*\*Vaishnavi Sunkara\*\*
-
-
-
-\*\*PayRescue — AI-Powered Payment Recovery and Decision-Support System\*\*
-
-
-
+**PayRescue — AI-Powered Payment Recovery and Decision-Support System**
